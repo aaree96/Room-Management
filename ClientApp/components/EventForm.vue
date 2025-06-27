@@ -1,8 +1,7 @@
 <template>
-    <div>
-        <div class="text-2xl font-bold mb-4">
-            Event Form
-        </div>
+    <UModal
+        title="EventForm">
+        <template #body>
         <FormKit
             type="form"
             :actions="false"
@@ -99,7 +98,8 @@
                 <Button label="New Event" />
             </template>
         </FormKit>
-    </div>
+        </template>
+    </UModal>
 </template>
 
 <script setup lang="ts">
@@ -116,13 +116,14 @@ const event = ref<any>({
 
 const props = defineProps(['eventInfo'])
 const emit = defineEmits(['update', 'close'])
+const toast = useToast()
 
 if (props.eventInfo != undefined) {
     event.value = props.eventInfo
 }
 
 if (props.eventInfo != undefined && props.eventInfo.id == undefined) {
-    $fetch(`/api/v1/User?id=5`, {
+    $fetch(`/api/v1/User?id=4`, {
         server: false,
         onResponse({ response }) {
             event.value.email = response._data.email
@@ -157,11 +158,13 @@ const onSubmit = () => {
             body: event.value,
             onResponse({ response }) {
                 if (!response.ok) {
-                    alert(response._data)
+                    toast.add({ title: `Error: ${response._data}` })
                 } else {
                     emit('update')
-                    alert(`Event #${event.value.id} was updated successfully!`)
+                    toast.add({ title: `Event #${event.value.id} was updated successfully!`})
                 }
+
+                emit('close')
             }
         })
     } else {
@@ -175,8 +178,10 @@ const onSubmit = () => {
                     alert(response._data)
                 } else {
                     emit('update')
-                    alert(`Event #${response._data.id} was created successfully!`)
+                    toast.add({ title: `Event #${response._data.id} was created successfully!` })
                 }
+
+                emit('close')
             }
         })
     }

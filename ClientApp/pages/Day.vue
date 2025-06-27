@@ -1,7 +1,7 @@
 <template>
     <div>
         <div class="text-2xl font-bold mb-4">
-            Room Management - Day View
+            Room Management - Day View {{  route.query.date }}
         </div>
         <div class="mb-4">
             <Button label="Calendar" icon="ic:outline-calendar-month" @click="onClickCalendar" />
@@ -15,10 +15,28 @@
 <script setup lang="ts">
 import { DayPilot, DayPilotCalendar } from '@daypilot/daypilot-lite-vue'
 import { ref, onMounted } from 'vue'
-import { ModalTest } from '#components'
+import { EventForm } from '#components'
+import * as signalR from '@microsoft/signalr'
 
 const route = useRoute()
 const event = ref()
+const toast = useToast()
+const overlay = useOverlay()
+const modal = overlay.create(EventForm)
+
+const connection = new signalR.HubConnectionBuilder()
+    .withUrl('/hub/Events', signalR.HttpTransportType.LongPolling)
+    .withAutomaticReconnect()
+    .build()
+
+connection.on('NewEvent', () => loadEvents())
+connection.on('UpdatedEvent', () => loadEvents())
+connection.on('DeletedEvent', () => loadEvents())
+
+connection
+    .start()
+    .catch((err) => console.error("SignalR Connection Error: ", err))
+
 const isEventFormShown = ref(false)
 const eventFormRef = ref()
 
@@ -39,17 +57,12 @@ const config = ref({
     businessEndsHour: 21,
     timeRangeSelectedHandling: 'Enabled',
     onTimeRangeSelected: async (args) => {
-        console.log(args)
-        isEventFormShown.value = false
-        setTimeout(() => {
             event.value = {}
             event.value.startAt = args.start
             event.value.endAt = args.end
             event.value.roomId = args.resource
-            isEventFormShown.value = true
+            modal.open({ eventInfo: event.value })
             args.control.clearSelection()
-            scroll()
-        }, 200)
     },
     eventDeleteHandling: 'Update',
     onEventDeleted: (args) => {
@@ -59,7 +72,9 @@ const config = ref({
             method: 'DELETE',
             onResponse({ response }) {
                 if (!response.ok) {
-                    alert(`Could not delete event ${args.e.text()}.`)
+                    toast.add(`Could not delete event ${args.e.text()}.`)
+                } else {
+                    toast.add({ title: `Event ${args.e.text()}was deleted successfully.` })
                 }
                 loadEvents()
             }
@@ -80,9 +95,9 @@ const config = ref({
                     body: originalEvent,
                     onResponse({ response }) {
                         if (!response.ok) {
-                            alert(response._data)
+                            toast.add({ title: `Error ${response._data}` })
                         } else {
-                            alert(`Event #${originalEvent.id} was moved successfully!`)
+                            toast.add({ title: `Event #${originalEvent.id} was moved successfully!` })
                         }
 
                         loadEvents()
@@ -108,7 +123,7 @@ const config = ref({
                         if (!response.ok) {
                             alert(response._data)
                         } else {
-                            alert(`Event #${originalEvent.id} was resized successfully!`)
+                            toast.add({ title: `Event #${originalEvent.id} was resized successfully!` })
                         }
 
                         loadEvents()
@@ -129,10 +144,7 @@ const config = ref({
                         server: false,
                         onResponse({ response }) {
                             event.value = response._data
-                            setTimeout(() => {
-                                isEventFormShown.value = true
-                                scroll()
-                            }, 200)
+                            modal.open({ eventInfo: event.value })
                         }
                     })
                 }
@@ -148,7 +160,7 @@ const config = ref({
                         method: 'DELETE',
                         onResponse({ response }) {
                             if (!response.ok) {
-                                alert(`Could not delete event ${args.source.text()}.`)
+                                toast.add({ title: `Could not delete event ${args.source.text()}.` })
                             }
                             loadEvents()
                         }
@@ -199,13 +211,5 @@ const onClickCalendar = () => navigateTo('/')
 onMounted(async () => {
     loadEvents()        // load events
     loadResources()     // load rooms (resources)
-
-    const overlay = useOverlay()
-    const modal = overlay.create(ModalTest)
-
-    const instance = modal.open()
-    console.log(modal)
-    console.log(instance)
-    const shouldIncrement = await instance.result
 })
 </script>
