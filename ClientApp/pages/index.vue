@@ -1,8 +1,12 @@
 <template>
     <div>
-        <div class="text-lg lg:text-2xl font-bold mb-4">
+        <div class="flex justify-between"><div class="text-lg lg:text-2xl font-bold mb-4">
             Room Management Calendar
-        </div>
+        </div><FormKit
+    type="button"
+    label="Logout"
+    @click="onClickLogout"
+    outerClass="!grow-0"></FormKit> </div>
         <div class="flex space-x-4 mb-4">
             <Button icon="ooui:arrow-previous-ltr" label="Previous Month" @click="onClickPreviousMonth" />
             <Button icon="ooui:arrow-previous-rtl" label="Next Month" @click="onClickNextMonth" />
@@ -18,7 +22,7 @@
 <script setup>
 import { DayPilot, DayPilotMonth } from '@daypilot/daypilot-lite-vue'
 import { ref, onMounted } from 'vue'
-import { EventForm} from '#components'
+import { EventForm, Reminder } from '#components'
 
 const event = ref()
 const eventFormRef = ref()
@@ -39,8 +43,14 @@ const months = [
 ]
 const overlay = useOverlay()
 const modal = overlay.create(EventForm)
+const reminderModal = overlay.create(Reminder)
 const toast = useToast()
-
+if(localStorage.getItem('token') == undefined || localStorage.getItem('token') == null)
+{
+    navigateTo(`/Login`)
+} else {
+    reminderModal.open()
+}
 const config = ref({
     locale: 'en-us',
     timeRangeSelectedHandling: 'Enabled',
@@ -72,7 +82,9 @@ const config = ref({
                 onClick: (args) => {
                     let id = args.source.id()
                     $fetch(`/api/v1/Event?id=${id}`, {
-                        server: false,
+                        server: false, headers: {
+                            Authorization: `Bearer ${localStorage.getItem('token')}`
+                        },
                         onResponse({ response }) {
                             event.value = response._data
                             modal.open({ eventInfo: event.value })
@@ -87,7 +99,9 @@ const config = ref({
                     const dp = args.source.calendar
                     dp.events.remove(args.source)
                     $fetch(`/api/v1/Event?id=${args.source.id()}`, {
-                        server: false,
+                        server: false,headers: {
+                            Authorization: `Bearer ${localStorage.getItem('token')}`
+                        },
                         method: 'DELETE',
                         onResponse({ response }) {
                             if (!response.ok) {
@@ -104,6 +118,10 @@ const config = ref({
 
 const monthRef = ref(null)
 
+const onClickLogout = () => {
+    localStorage.removeItem('token')
+    navigateTo(`/Login`)
+}
 const loadEvents = () => {
     let events = []
     let startDate = new Date(currentDate.value)
@@ -114,7 +132,9 @@ const loadEvents = () => {
     endDate.setMonth(endDate.getMonth() + 1)
 
     $fetch(`/api/v1/Event/Events?start=${startDate.toLocaleDateString()}&end=${endDate.toLocaleDateString()}`, {
-        server: false,
+        server: false, headers: {
+                            Authorization: `Bearer ${localStorage.getItem('token')}`
+                        },
         onResponse({ response }) {
             for (let event of response._data) {
                 let eventStart = new Date(event.startAt)

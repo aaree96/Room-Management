@@ -9,6 +9,11 @@ using System.Threading.Tasks;
 
 namespace RoomManagement.Controllers;
 
+using System.Security.Claims;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using RoomManagement.DTOs;
+
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.None)]
 public partial class EventMapper
 {
@@ -17,7 +22,7 @@ public partial class EventMapper
     [MapperIgnoreTarget(nameof(Event.CreatedAt))]
     public partial void EventToEvent(Event oldEvent, Event newEvent);
 }
-
+[Authorize]
 [ApiController]
 [Route("/api/v1/[controller]")]
 public class EventController : ControllerBase
@@ -60,9 +65,10 @@ public class EventController : ControllerBase
         try
         {
             var calendarEvents = _context.Database.SqlQuery<EventUserDTO>(@$"
-                SELECT Events.*, Users.Email, Users.Phone, Users.Name AS UserName
+                SELECT Events.*, Users.Email, Users.Phone, Users.Name AS UserName, Rooms.Name AS RoomName
                 FROM Events
                 INNER JOIN Users ON Events.CreatedBy = Users.Id
+                INNER JOIN Rooms ON Events.RoomId = Rooms.Id
                 WHERE StartAt >= {start}
                 AND EndAt <= CONCAT({end}, ' 23:59')
             ");
@@ -77,6 +83,9 @@ public class EventController : ControllerBase
     [HttpPost]
     public async Task <IActionResult> NewEvent(Event userEvent)
     {
+        var currentUser = HttpContext.User;
+        var userId = Convert.ToInt32(currentUser.Claims.Where(claim => claim.Type == ClaimTypes.Sid).First().Value);
+
         var room = _context.Rooms.Single(r => r.Id == userEvent.RoomId);
 
         var events = _context.Events.Where(e => e.RoomId == userEvent.RoomId && (
@@ -117,6 +126,7 @@ public class EventController : ControllerBase
             newEvent.UpdatedBy = null;
             newEvent.UpdatedAt = null;
             newEvent.CreatedBy = 5;
+            newEvent.CreatedBy = userId;
             newEvent.CreatedAt = DateTime.Now;
 
            await _context.AddAsync(newEvent);
@@ -134,6 +144,8 @@ public class EventController : ControllerBase
     [HttpPut]
     public async Task <IActionResult> UpdateEvent(Event userEvent)
     {
+        var currentUser = HttpContext.User;
+        var userId = Convert.ToInt32(currentUser.Claims.Where(claim => claim.Type == ClaimTypes.Sid).First().Value);
         var room = _context.Rooms.Single(r => r.Id == userEvent.RoomId);
 
         var events = _context.Events.Where(e => e.RoomId == userEvent.RoomId && (
